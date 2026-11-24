@@ -48,5 +48,20 @@ if (/\s/.test(onDisk)) refuse("the entry contains white space, so it is not one 
 if (!/^\p{L}+$/u.test(onDisk)) refuse("the entry is not a single run of letters");
 // Grandma types this one in caps; keep the shout intact.
 if (onDisk !== onDisk.toUpperCase()) refuse("the word lost its caps-lock grandma energy");
+// Byte-level belt and braces: the file must be exactly the word's own
+// UTF-8 bytes — no trailing newline she never sent, no BOM, nothing
+// the write step might have smuggled in around the word.
+const rawBytes = readFileSync(target);
+const wordBytes = Buffer.from(WORD, "utf8");
+if (!rawBytes.equals(wordBytes)) {
+  refuse(`file holds ${rawBytes.length} bytes, not the word's exact ${wordBytes.length}`);
+}
+if (rawBytes[0] === 0xef && rawBytes[1] === 0xbb && rawBytes[2] === 0xbf) {
+  refuse("the file starts with a byte-order mark");
+}
+// And the bytes must survive a strict UTF-8 round trip unchanged.
+if (new TextDecoder("utf-8", { fatal: true }).decode(rawBytes) !== WORD) {
+  refuse("the file is not clean UTF-8 for the word");
+}
 
 console.log(`wrote ${target}: "${onDisk}" (${chars.length} characters, one word, gate ok)`);
